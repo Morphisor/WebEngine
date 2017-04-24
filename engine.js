@@ -1,107 +1,80 @@
-﻿//<reference path="babylon.math.ts"/>
-
-class Camera {
-    Position: BABYLON.Vector3;
-    Target: BABYLON.Vector3;
-
-    constructor() {
+//<reference path="babylon.math.ts"/>
+var Camera = (function () {
+    function Camera() {
         this.Position = BABYLON.Vector3.Zero();
         this.Target = BABYLON.Vector3.Zero();
     }
-}
-
-class Mesh {
-    Position: BABYLON.Vector3;
-    Rotation: BABYLON.Vector3;
-    Vertices: BABYLON.Vector3[];
-
-    constructor(public name: string, verticesCount: number) {
+    return Camera;
+}());
+var Mesh = (function () {
+    function Mesh(name, verticesCount) {
+        this.name = name;
         this.Vertices = new Array(verticesCount);
         this.Rotation = BABYLON.Vector3.Zero();
         this.Position = BABYLON.Vector3.Zero();
     }
-}
-
-class Renderer {
-    private backBuffer: ImageData;
-    private workingCanvas: HTMLCanvasElement;
-    private workingContext: CanvasRenderingContext2D;
-    private workingWidth: number;
-    private workingHeight: number;
-    private backBufferData;
-
-    constructor(canvas: HTMLCanvasElement) {
+    return Mesh;
+}());
+var Renderer = (function () {
+    function Renderer(canvas) {
         this.workingCanvas = canvas;
         this.workingWidth = canvas.width;
         this.workingHeight = canvas.height;
         this.workingContext = this.workingCanvas.getContext("2d");
     }
-
-    public clear(): void {
+    Renderer.prototype.clear = function () {
         this.workingContext.clearRect(0, 0, this.workingWidth, this.workingHeight);
         this.backBuffer = this.workingContext.getImageData(0, 0, this.workingWidth, this.workingHeight);
-    }
-
-    public present(): void {
+    };
+    Renderer.prototype.present = function () {
         this.workingContext.putImageData(this.backBuffer, 0, 0);
-    }
-
-    public putPixel(x: number, y: number, color: BABYLON.Color4): void {
+    };
+    Renderer.prototype.putPixel = function (x, y, color) {
         this.backBufferData = this.backBuffer.data;
-        var index: number = ((x >> 0) + (y >> 0) * this.workingWidth) * 4;
-
+        var index = ((x >> 0) + (y >> 0) * this.workingWidth) * 4;
         this.backBufferData[index] = color.r * 255;
         this.backBufferData[index + 1] = color.g * 255;
         this.backBufferData[index + 1] = color.b * 255;
         this.backBufferData[index + 1] = color.a * 255;
-    }
-
-    public project(coord: BABYLON.Vector3, transMat: BABYLON.Matrix): BABYLON.Vector2 {
+    };
+    Renderer.prototype.project = function (coord, transMat) {
         var point = BABYLON.Vector3.TransformCoordinates(coord, transMat);
         var x = point.x * this.workingWidth + this.workingWidth / 2.0 >> 0;
         var y = -point.y * this.workingHeight + this.workingHeight / 2.0 >> 0;
         return (new BABYLON.Vector2(x, y));
-    }
-
-    public drawPoint(point: BABYLON.Vector2): void {
-        if (point.x >= 0 && point.y > + 0 && point.x < this.workingWidth && point.y < this.workingHeight)
+    };
+    Renderer.prototype.drawPoint = function (point) {
+        if (point.x >= 0 && point.y > +0 && point.x < this.workingWidth && point.y < this.workingHeight)
             this.putPixel(point.x, point.y, new BABYLON.Color4(1, 1, 0, 1));
-    }
-
-    public render(camera: Camera, meshes: Mesh[]): void {
+    };
+    Renderer.prototype.render = function (camera, meshes) {
         var viewMatrix = BABYLON.Matrix.LookAtLH(camera.Position, camera.Target, BABYLON.Vector3.Up());
         var projectionMatrix = BABYLON.Matrix.PerspectiveFovLH(0.78, this.workingWidth / this.workingHeight, 0.1, 1.0);
-        for (let index = 0; index < meshes.length; index++){
+        for (var index = 0; index < meshes.length; index++) {
             var cMesh = meshes[index];
-            var worldMatrix = BABYLON.Matrix.RotationYawPitchRoll(cMesh.Rotation.y, cMesh.Rotation.x, cMesh.Rotation.z)
+            var worldMatrix = BABYLON.Matrix.RotationYawPitchRoll(cMesh.Rotation.y, cMesh.Rotation.x, cMesh.Rotation.z);
             worldMatrix.multiply(BABYLON.Matrix.Translation(cMesh.Position.x, cMesh.Position.y, cMesh.Position.z));
-
             var transformMatrix = worldMatrix.multiply(viewMatrix).multiply(projectionMatrix);
-
-            for (let indexVertices = 0; indexVertices < cMesh.Vertices.length; indexVertices++) {
+            for (var indexVertices = 0; indexVertices < cMesh.Vertices.length; indexVertices++) {
                 var projectedPoint = this.project(cMesh.Vertices[indexVertices], transformMatrix);
                 this.drawPoint(projectedPoint);
             }
         }
-    }
-}
-
+    };
+    return Renderer;
+}());
 document.addEventListener("DOMContentLoaded", init, false);
-
-var canvas: HTMLCanvasElement;
-var renderer: Renderer;
-var mesh: Mesh;
-var meshes: Mesh[] = [];
-var camera: Camera;
-
+var canvas;
+var renderer;
+var mesh;
+var meshes = [];
+var camera;
 function init() {
-
-    canvas = <HTMLCanvasElement>document.getElementById("frontBuffer");
+    canvas = document.getElementById("frontBuffer");
     mesh = new Mesh("Cube", 8);
     meshes.push(mesh);
     camera = new Camera();
     renderer = new Renderer(canvas);
-
     mesh.Vertices[0] = new BABYLON.Vector3(-1, 1, 1);
     mesh.Vertices[1] = new BABYLON.Vector3(1, 1, 1);
     mesh.Vertices[2] = new BABYLON.Vector3(-1, -1, 1);
@@ -110,21 +83,15 @@ function init() {
     mesh.Vertices[5] = new BABYLON.Vector3(1, 1, -1);
     mesh.Vertices[6] = new BABYLON.Vector3(1, -1, 1);
     mesh.Vertices[7] = new BABYLON.Vector3(1, -1, -1);
-
     camera.Position = new BABYLON.Vector3(0, 0, 10);
     camera.Target = new BABYLON.Vector3(0, 0, 0);
-
     requestAnimationFrame(drawingLoop);
 }
-
 function drawingLoop() {
     renderer.clear();
-
     mesh.Rotation.x += 0.01;
     mesh.Rotation.y += 0.01;
-
     renderer.render(camera, meshes);
     renderer.present();
-
     requestAnimationFrame(drawingLoop);
 }
