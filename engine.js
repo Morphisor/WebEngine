@@ -48,6 +48,15 @@ var Renderer = (function () {
             this.putPixel(point.x, point.y, new BABYLON.Color4(1, 1, 0, 1));
         }
     };
+    Renderer.prototype.drawLine = function (point0, point1) {
+        var dist = point1.subtract(point0).length();
+        if (dist > 2) {
+            var middlepoint = point0.add((point1.subtract(point0).scale(0.5)));
+            this.drawPoint(middlepoint);
+            this.drawLine(point0, middlepoint);
+            this.drawLine(middlepoint, point1);
+        }
+    };
     Renderer.prototype.render = function (camera, meshes) {
         var viewMatrix = BABYLON.Matrix.LookAtLH(camera.Position, camera.Target, BABYLON.Vector3.Up());
         var projectionMatrix = BABYLON.Matrix.PerspectiveFovLH(0.78, this.workingWidth / this.workingHeight, 0.01, 1.0);
@@ -56,8 +65,9 @@ var Renderer = (function () {
             var worldMatrix = BABYLON.Matrix.RotationYawPitchRoll(cMesh.Rotation.y, cMesh.Rotation.x, cMesh.Rotation.z).multiply(BABYLON.Matrix.Translation(cMesh.Position.x, cMesh.Position.y, cMesh.Position.z));
             var transformMatrix = worldMatrix.multiply(viewMatrix).multiply(projectionMatrix);
             for (var indexVertices = 0; indexVertices < cMesh.Vertices.length; indexVertices++) {
-                var projectedPoint = this.project(cMesh.Vertices[indexVertices], transformMatrix);
-                this.drawPoint(projectedPoint);
+                var point0 = this.project(cMesh.Vertices[index], transformMatrix);
+                var point1 = this.project(cMesh.Vertices[index + 1], transformMatrix);
+                this.drawLine(point0, point1);
             }
         }
     };
