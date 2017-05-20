@@ -201,7 +201,6 @@ var Renderer = (function () {
     };
     return Renderer;
 }());
-document.addEventListener("DOMContentLoaded", init, false);
 var canvas;
 var renderer;
 var mesh;

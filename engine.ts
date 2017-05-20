@@ -258,8 +258,6 @@ class Renderer {
     }
 }
 
-document.addEventListener("DOMContentLoaded", init, false);
-
 var canvas: HTMLCanvasElement;
 var renderer: Renderer;
 var mesh: Mesh;
