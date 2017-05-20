@@ -104,6 +104,62 @@ var Renderer = (function () {
             }
         }
     };
+    Renderer.prototype.loadJsonFileAsync = function (fileName, callback) {
+        var jsonObject = {};
+        var xmlhttp = new XMLHttpRequest();
+        xmlhttp.open("GET", fileName, true);
+        var self = this;
+        xmlhttp.onreadystatechange = function () {
+            if (xmlhttp.readyState == 4 && xmlhttp.status == 200) {
+                jsonObject = JSON.parse(xmlhttp.responseText);
+                callback(self.createMeshesFromJson(jsonObject));
+            }
+        };
+        xmlhttp.send(null);
+    };
+    Renderer.prototype.createMeshesFromJson = function (jsonObject) {
+        var meshes = [];
+        for (var meshIndex = 0; meshIndex < jsonObject.meshes.length; meshIndex++) {
+            var verticesArray = jsonObject.meshes[meshIndex].vertices;
+            var indicesArray = jsonObject.meshes[meshIndex].indices;
+            var uvCount = jsonObject.meshes[meshIndex].uvCount;
+            var verticesStep = 1;
+            switch (uvCount) {
+                case 0:
+                    verticesStep = 6;
+                    break;
+                case 1:
+                    verticesStep = 8;
+                    break;
+                case 2:
+                    verticesStep = 10;
+                    break;
+            }
+            var verticesCount = verticesArray.length / verticesStep;
+            var facesCount = indicesArray.length / 3;
+            var mesh = new Mesh(jsonObject.meshes[meshIndex].name, verticesCount, facesCount);
+            for (var index = 0; index < verticesCount; index++) {
+                var x = verticesArray[index * verticesStep];
+                var y = verticesArray[index * verticesStep + 1];
+                var z = verticesArray[index * verticesStep + 2];
+                mesh.Vertices[index] = new BABYLON.Vector3(x, y, z);
+            }
+            for (var index = 0; index < facesCount; index++) {
+                var a = indicesArray[index * 3];
+                var b = indicesArray[index * 3 + 1];
+                var c = indicesArray[index * 3 + 2];
+                mesh.Faces[index] = {
+                    A: a,
+                    B: b,
+                    C: c
+                };
+            }
+            var position = jsonObject.meshes[meshIndex].position;
+            mesh.Position = new BABYLON.Vector3(position[0], position[1], position[2]);
+            meshes.push(mesh);
+        }
+        return meshes;
+    };
     return Renderer;
 }());
 document.addEventListener("DOMContentLoaded", init, false);
@@ -112,40 +168,25 @@ var renderer;
 var mesh;
 var meshes = [];
 var camera;
+document.addEventListener("DOMContentLoaded", init, false);
 function init() {
     canvas = document.getElementById("frontBuffer");
     camera = new Cacamera();
     renderer = new Renderer(canvas);
-    mesh = new Mesh("Cube", 8, 12);
-    meshes.push(mesh);
-    mesh.Vertices[0] = new BABYLON.Vector3(-1, 1, 1);
-    mesh.Vertices[1] = new BABYLON.Vector3(1, 1, 1);
-    mesh.Vertices[2] = new BABYLON.Vector3(-1, -1, 1);
-    mesh.Vertices[3] = new BABYLON.Vector3(1, -1, 1);
-    mesh.Vertices[4] = new BABYLON.Vector3(-1, 1, -1);
-    mesh.Vertices[5] = new BABYLON.Vector3(1, 1, -1);
-    mesh.Vertices[6] = new BABYLON.Vector3(1, -1, -1);
-    mesh.Vertices[7] = new BABYLON.Vector3(-1, -1, -1);
-    mesh.Faces[0] = { A: 0, B: 1, C: 2 };
-    mesh.Faces[1] = { A: 1, B: 2, C: 3 };
-    mesh.Faces[2] = { A: 1, B: 3, C: 6 };
-    mesh.Faces[3] = { A: 1, B: 5, C: 6 };
-    mesh.Faces[4] = { A: 0, B: 1, C: 4 };
-    mesh.Faces[5] = { A: 1, B: 4, C: 5 };
-    mesh.Faces[6] = { A: 2, B: 3, C: 7 };
-    mesh.Faces[7] = { A: 3, B: 6, C: 7 };
-    mesh.Faces[8] = { A: 0, B: 2, C: 7 };
-    mesh.Faces[9] = { A: 0, B: 4, C: 7 };
-    mesh.Faces[10] = { A: 4, B: 5, C: 6 };
-    mesh.Faces[11] = { A: 4, B: 6, C: 7 };
     camera.Position = new BABYLON.Vector3(0, 0, 10);
     camera.Target = new BABYLON.Vector3(0, 0, 0);
+    renderer.loadJsonFileAsync("monkey.json", loadJsonCompleted);
+}
+function loadJsonCompleted(meshesLoaded) {
+    meshes = meshesLoaded;
     requestAnimationFrame(drawingLoop);
 }
 function drawingLoop() {
     renderer.clear();
-    mesh.Rotation.x += 0.01;
-    mesh.Rotation.y += 0.01;
+    for (var i = 0; i < meshes.length; i++) {
+        meshes[i].Rotation.x += 0.01;
+        meshes[i].Rotation.y += 0.01;
+    }
     renderer.render(camera, meshes);
     renderer.present();
     requestAnimationFrame(drawingLoop);
