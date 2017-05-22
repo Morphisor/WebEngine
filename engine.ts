@@ -20,7 +20,7 @@ interface ScanLineData {
     ndotld?: number;
 }
 
-class Cacamera {
+class Camera {
     Position: BABYLON.Vector3;
     Target: BABYLON.Vector3;
 
@@ -63,51 +63,39 @@ class Renderer {
 
     public clear(): void {
         this.workingContext.clearRect(0, 0, this.workingWidth, this.workingHeight);
+
         this.backbuffer = this.workingContext.getImageData(0, 0, this.workingWidth, this.workingHeight);
 
-        for (let i = 0; i < this.depthbuffer.length; i++) {
+        for (var i = 0; i < this.depthbuffer.length; i++) {
             this.depthbuffer[i] = 10000000;
         }
     }
 
-    public present(): void {
-        this.workingContext.putImageData(this.backbuffer, 0, 0);
-    }
-
     public putPixel(x: number, y: number, z: number, color: BABYLON.Color4): void {
         this.backbufferdata = this.backbuffer.data;
+
         var index: number = ((x >> 0) + (y >> 0) * this.workingWidth);
         var index4: number = index * 4;
 
         if (this.depthbuffer[index] < z) {
             return;
         }
-        this.depthbuffer[index] = z
 
+        this.depthbuffer[index] = z;
         this.backbufferdata[index4] = color.r * 255;
         this.backbufferdata[index4 + 1] = color.g * 255;
         this.backbufferdata[index4 + 2] = color.b * 255;
         this.backbufferdata[index4 + 3] = color.a * 255;
     }
 
-    public project(vertex: Vertex, transMat: BABYLON.Matrix, world: BABYLON.Matrix): Vertex {
-        var point2d = BABYLON.Vector3.TransformCoordinates(vertex.Coordinates, transMat);
-        var point3DWorld = BABYLON.Vector3.TransformCoordinates(vertex.Coordinates, world);
-        var normal3DWorld = BABYLON.Vector3.TransformCoordinates(vertex.Normal, world);
-
-        var x = point2d.x * this.workingWidth + this.workingWidth / 2.0;
-        var y = -point2d.y * this.workingHeight + this.workingHeight / 2.0;
-        return ({
-            Coordinates: new BABYLON.Vector3(x, y, point2d.z),
-            Normal: normal3DWorld,
-            WorldCoordinates: point3DWorld
-        })
-    }
-
     public drawPoint(point: BABYLON.Vector3, color: BABYLON.Color4): void {
         if (point.x >= 0 && point.y >= 0 && point.x < this.workingWidth && point.y < this.workingHeight) {
             this.putPixel(point.x, point.y, point.z, color);
         }
+    }
+
+    public present(): void {
+        this.workingContext.putImageData(this.backbuffer, 0, 0);
     }
 
     public clamp(value: number, min: number = 0, max: number = 1): number {
@@ -118,13 +106,28 @@ class Renderer {
         return min + (max - min) * this.clamp(gradient);
     }
 
-    public processScanLine(data: ScanLineData, va: Vertex, vb: Vertex, vc: Vertex, vd: Vertex, color: BABYLON.Color4): void{
+    public project(vertex: Vertex, transMat: BABYLON.Matrix, world: BABYLON.Matrix): Vertex {
+        var point2d = BABYLON.Vector3.TransformCoordinates(vertex.Coordinates, transMat);
+        var point3DWorld = BABYLON.Vector3.TransformCoordinates(vertex.Coordinates, world);
+        var normal3DWorld = BABYLON.Vector3.TransformCoordinates(vertex.Normal, world);
+
+        var x = point2d.x * this.workingWidth + this.workingWidth / 2.0;
+        var y = -point2d.y * this.workingHeight + this.workingHeight / 2.0;
+
+        return ({
+            Coordinates: new BABYLON.Vector3(x, y, point2d.z),
+            Normal: normal3DWorld,
+            WorldCoordinates: point3DWorld
+        });
+    }
+
+    public processScanLine(data: ScanLineData, va: Vertex, vb: Vertex, vc: Vertex, vd: Vertex, color: BABYLON.Color4): void {
         var pa = va.Coordinates;
         var pb = vb.Coordinates;
         var pc = vc.Coordinates;
         var pd = vd.Coordinates;
 
-        var gradient1 = pa.y != pd.y ? (data.currentY - pa.y) / (pd.y - pa.y) : 1;
+        var gradient1 = pa.y != pb.y ? (data.currentY - pa.y) / (pb.y - pa.y) : 1;
         var gradient2 = pc.y != pd.y ? (data.currentY - pc.y) / (pd.y - pc.y) : 1;
 
         var sx = this.interpolate(pa.x, pb.x, gradient1) >> 0;
@@ -133,8 +136,9 @@ class Renderer {
         var z1: number = this.interpolate(pa.z, pb.z, gradient1);
         var z2: number = this.interpolate(pc.z, pd.z, gradient2);
 
-        for (let x = sx; x < ex; x++) {
+        for (var x = sx; x < ex; x++) {
             var gradient: number = (x - sx) / (ex - sx);
+
             var z = this.interpolate(z1, z2, gradient);
             var ndotl = data.ndotla;
             this.drawPoint(new BABYLON.Vector3(x, data.currentY, z), new BABYLON.Color4(color.r * ndotl, color.g * ndotl, color.b * ndotl, 1));
@@ -143,6 +147,7 @@ class Renderer {
 
     public computeNDotL(vertex: BABYLON.Vector3, normal: BABYLON.Vector3, lightPosition: BABYLON.Vector3): number {
         var lightDirection = lightPosition.subtract(vertex);
+
         normal.normalize();
         lightDirection.normalize();
 
@@ -181,8 +186,7 @@ class Renderer {
 
         var data: ScanLineData = { ndotla: ndotl };
 
-        var dP1P2: number;
-        var dP1P3: number;
+        var dP1P2: number; var dP1P3: number;
 
         if (p2.y - p1.y > 0)
             dP1P2 = (p2.x - p1.x) / (p2.y - p1.y);
@@ -194,6 +198,16 @@ class Renderer {
         else
             dP1P3 = 0;
 
+        // P1
+        // -
+        // -- 
+        // - -
+        // -  -
+        // -   - P2
+        // -  -
+        // - -
+        // -
+        // P3
         if (dP1P2 > dP1P3) {
             for (var y = p1.y >> 0; y <= p3.y >> 0; y++) {
                 data.currentY = y;
@@ -206,6 +220,16 @@ class Renderer {
                 }
             }
         }
+        //       P1
+        //        -
+        //       -- 
+        //      - -
+        //     -  -
+        // P2 -   - 
+        //     -  -
+        //      - -
+        //        -
+        //       P3
         else {
             for (var y = p1.y >> 0; y <= p3.y >> 0; y++) {
                 data.currentY = y;
@@ -220,13 +244,19 @@ class Renderer {
         }
     }
 
-    public render(cacamera: Cacamera, meshes: Mesh[]): void {
-        var viewMatrix = BABYLON.Matrix.LookAtLH(cacamera.Position, cacamera.Target, BABYLON.Vector3.Up());
+    public render(camera: Camera, meshes: Mesh[]): void {
+        // To understand this part, please read the prerequisites resources
+        var viewMatrix = BABYLON.Matrix.LookAtLH(camera.Position, camera.Target, BABYLON.Vector3.Up());
         var projectionMatrix = BABYLON.Matrix.PerspectiveFovLH(0.78, this.workingWidth / this.workingHeight, 0.01, 1.0);
 
         for (var index = 0; index < meshes.length; index++) {
+            // current mesh to work on
             var cMesh = meshes[index];
-            var worldMatrix = BABYLON.Matrix.RotationYawPitchRoll(cMesh.Rotation.y, cMesh.Rotation.x, cMesh.Rotation.z).multiply(BABYLON.Matrix.Translation(cMesh.Position.x, cMesh.Position.y, cMesh.Position.z));
+            // Beware to apply rotation before translation
+            var worldMatrix = BABYLON.Matrix.RotationYawPitchRoll(
+                cMesh.Rotation.y, cMesh.Rotation.x, cMesh.Rotation.z)
+                .multiply(BABYLON.Matrix.Translation(
+                    cMesh.Position.x, cMesh.Position.y, cMesh.Position.z));
 
             var transformMatrix = worldMatrix.multiply(viewMatrix).multiply(projectionMatrix);
 
@@ -240,11 +270,12 @@ class Renderer {
                 var pixelB = this.project(vertexB, transformMatrix, worldMatrix);
                 var pixelC = this.project(vertexC, transformMatrix, worldMatrix);
 
-                var color: number = 0.25 + ((indexFaces % cMesh.Faces.length) / cMesh.Faces.length) * 0.75;
+                var color = 1.0;
                 this.drawTriangle(pixelA, pixelB, pixelC, new BABYLON.Color4(color, color, color, 1));
             }
         }
     }
+
     public loadJsonFileAsync(fileName: string, callback: (result: Mesh[]) => any): void {
         var jsonObject = {};
         var xmlhttp = new XMLHttpRequest();
@@ -253,15 +284,15 @@ class Renderer {
         xmlhttp.onreadystatechange = function () {
             if (xmlhttp.readyState == 4 && xmlhttp.status == 200) {
                 jsonObject = JSON.parse(xmlhttp.responseText);
-                callback(self.createMeshesFromJson(jsonObject));
+                callback(self.createMeshesFromJSON(jsonObject));
             }
         };
         xmlhttp.send(null);
     }
 
-    private createMeshesFromJson(jsonObject): Mesh[] {
+    private createMeshesFromJSON(jsonObject): Mesh[] {
         var meshes: Mesh[] = [];
-        for (let meshIndex = 0; meshIndex < jsonObject.meshes.length; meshIndex++) {
+        for (var meshIndex = 0; meshIndex < jsonObject.meshes.length; meshIndex++) {
             var verticesArray: number[] = jsonObject.meshes[meshIndex].vertices;
             var indicesArray: number[] = jsonObject.meshes[meshIndex].indices;
 
@@ -284,15 +315,13 @@ class Renderer {
             var facesCount = indicesArray.length / 3;
             var mesh = new Mesh(jsonObject.meshes[meshIndex].name, verticesCount, facesCount);
 
-            for (let index = 0; index < verticesCount; index++) {
+            for (var index = 0; index < verticesCount; index++) {
                 var x = verticesArray[index * verticesStep];
                 var y = verticesArray[index * verticesStep + 1];
                 var z = verticesArray[index * verticesStep + 2];
-
                 var nx = verticesArray[index * verticesStep + 3];
                 var ny = verticesArray[index * verticesStep + 4];
                 var nz = verticesArray[index * verticesStep + 5];
-
                 mesh.Vertices[index] = {
                     Coordinates: new BABYLON.Vector3(x, y, z),
                     Normal: new BABYLON.Vector3(nx, ny, nz),
@@ -300,7 +329,7 @@ class Renderer {
                 };
             }
 
-            for (let index = 0; index < facesCount; index++) {
+            for (var index = 0; index < facesCount; index++) {
                 var a = indicesArray[index * 3];
                 var b = indicesArray[index * 3 + 1];
                 var c = indicesArray[index * 3 + 2];
@@ -310,7 +339,6 @@ class Renderer {
                     C: c
                 };
             }
-
             var position = jsonObject.meshes[meshIndex].position;
             mesh.Position = new BABYLON.Vector3(position[0], position[1], position[2]);
             meshes.push(mesh);
@@ -323,14 +351,14 @@ var canvas: HTMLCanvasElement;
 var renderer: Renderer;
 var mesh: Mesh;
 var meshes: Mesh[] = [];
-var camera: Cacamera;
+var camera: Camera;
 
 document.addEventListener("DOMContentLoaded", init, false);
 
 function init() {
 
     canvas = <HTMLCanvasElement>document.getElementById("frontBuffer");
-    camera = new Cacamera();
+    camera = new Camera();
     renderer = new Renderer(canvas);
 
 

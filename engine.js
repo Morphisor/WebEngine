@@ -1,10 +1,10 @@
 //<reference path="babylon.math.ts"/>
-var Cacamera = (function () {
-    function Cacamera() {
+var Camera = (function () {
+    function Camera() {
         this.Position = BABYLON.Vector3.Zero();
         this.Target = BABYLON.Vector3.Zero();
     }
-    return Cacamera;
+    return Camera;
 }());
 var Mesh = (function () {
     function Mesh(name, verticesCount, facesCount) {
@@ -31,9 +31,6 @@ var Renderer = (function () {
             this.depthbuffer[i] = 10000000;
         }
     };
-    Renderer.prototype.present = function () {
-        this.workingContext.putImageData(this.backbuffer, 0, 0);
-    };
     Renderer.prototype.putPixel = function (x, y, z, color) {
         this.backbufferdata = this.backbuffer.data;
         var index = ((x >> 0) + (y >> 0) * this.workingWidth);
@@ -47,6 +44,22 @@ var Renderer = (function () {
         this.backbufferdata[index4 + 2] = color.b * 255;
         this.backbufferdata[index4 + 3] = color.a * 255;
     };
+    Renderer.prototype.drawPoint = function (point, color) {
+        if (point.x >= 0 && point.y >= 0 && point.x < this.workingWidth && point.y < this.workingHeight) {
+            this.putPixel(point.x, point.y, point.z, color);
+        }
+    };
+    Renderer.prototype.present = function () {
+        this.workingContext.putImageData(this.backbuffer, 0, 0);
+    };
+    Renderer.prototype.clamp = function (value, min, max) {
+        if (min === void 0) { min = 0; }
+        if (max === void 0) { max = 1; }
+        return Math.max(min, Math.min(value, max));
+    };
+    Renderer.prototype.interpolate = function (min, max, gradient) {
+        return min + (max - min) * this.clamp(gradient);
+    };
     Renderer.prototype.project = function (vertex, transMat, world) {
         var point2d = BABYLON.Vector3.TransformCoordinates(vertex.Coordinates, transMat);
         var point3DWorld = BABYLON.Vector3.TransformCoordinates(vertex.Coordinates, world);
@@ -59,25 +72,12 @@ var Renderer = (function () {
             WorldCoordinates: point3DWorld
         });
     };
-    Renderer.prototype.drawPoint = function (point, color) {
-        if (point.x >= 0 && point.y >= 0 && point.x < this.workingWidth && point.y < this.workingHeight) {
-            this.putPixel(point.x, point.y, point.z, color);
-        }
-    };
-    Renderer.prototype.clamp = function (value, min, max) {
-        if (min === void 0) { min = 0; }
-        if (max === void 0) { max = 1; }
-        return Math.max(min, Math.min(value, max));
-    };
-    Renderer.prototype.interpolate = function (min, max, gradient) {
-        return min + (max - min) * this.clamp(gradient);
-    };
     Renderer.prototype.processScanLine = function (data, va, vb, vc, vd, color) {
         var pa = va.Coordinates;
         var pb = vb.Coordinates;
         var pc = vc.Coordinates;
         var pd = vd.Coordinates;
-        var gradient1 = pa.y != pd.y ? (data.currentY - pa.y) / (pd.y - pa.y) : 1;
+        var gradient1 = pa.y != pb.y ? (data.currentY - pa.y) / (pb.y - pa.y) : 1;
         var gradient2 = pc.y != pd.y ? (data.currentY - pc.y) / (pd.y - pc.y) : 1;
         var sx = this.interpolate(pa.x, pb.x, gradient1) >> 0;
         var ex = this.interpolate(pc.x, pd.x, gradient2) >> 0;
@@ -130,6 +130,16 @@ var Renderer = (function () {
             dP1P3 = (p3.x - p1.x) / (p3.y - p1.y);
         else
             dP1P3 = 0;
+        // P1
+        // -
+        // -- 
+        // - -
+        // -  -
+        // -   - P2
+        // -  -
+        // - -
+        // -
+        // P3
         if (dP1P2 > dP1P3) {
             for (var y = p1.y >> 0; y <= p3.y >> 0; y++) {
                 data.currentY = y;
@@ -153,12 +163,16 @@ var Renderer = (function () {
             }
         }
     };
-    Renderer.prototype.render = function (cacamera, meshes) {
-        var viewMatrix = BABYLON.Matrix.LookAtLH(cacamera.Position, cacamera.Target, BABYLON.Vector3.Up());
+    Renderer.prototype.render = function (camera, meshes) {
+        // To understand this part, please read the prerequisites resources
+        var viewMatrix = BABYLON.Matrix.LookAtLH(camera.Position, camera.Target, BABYLON.Vector3.Up());
         var projectionMatrix = BABYLON.Matrix.PerspectiveFovLH(0.78, this.workingWidth / this.workingHeight, 0.01, 1.0);
         for (var index = 0; index < meshes.length; index++) {
+            // current mesh to work on
             var cMesh = meshes[index];
-            var worldMatrix = BABYLON.Matrix.RotationYawPitchRoll(cMesh.Rotation.y, cMesh.Rotation.x, cMesh.Rotation.z).multiply(BABYLON.Matrix.Translation(cMesh.Position.x, cMesh.Position.y, cMesh.Position.z));
+            // Beware to apply rotation before translation
+            var worldMatrix = BABYLON.Matrix.RotationYawPitchRoll(cMesh.Rotation.y, cMesh.Rotation.x, cMesh.Rotation.z)
+                .multiply(BABYLON.Matrix.Translation(cMesh.Position.x, cMesh.Position.y, cMesh.Position.z));
             var transformMatrix = worldMatrix.multiply(viewMatrix).multiply(projectionMatrix);
             for (var indexFaces = 0; indexFaces < cMesh.Faces.length; indexFaces++) {
                 var currentFace = cMesh.Faces[indexFaces];
@@ -168,7 +182,7 @@ var Renderer = (function () {
                 var pixelA = this.project(vertexA, transformMatrix, worldMatrix);
                 var pixelB = this.project(vertexB, transformMatrix, worldMatrix);
                 var pixelC = this.project(vertexC, transformMatrix, worldMatrix);
-                var color = 0.25 + ((indexFaces % cMesh.Faces.length) / cMesh.Faces.length) * 0.75;
+                var color = 1.0;
                 this.drawTriangle(pixelA, pixelB, pixelC, new BABYLON.Color4(color, color, color, 1));
             }
         }
@@ -181,12 +195,12 @@ var Renderer = (function () {
         xmlhttp.onreadystatechange = function () {
             if (xmlhttp.readyState == 4 && xmlhttp.status == 200) {
                 jsonObject = JSON.parse(xmlhttp.responseText);
-                callback(self.createMeshesFromJson(jsonObject));
+                callback(self.createMeshesFromJSON(jsonObject));
             }
         };
         xmlhttp.send(null);
     };
-    Renderer.prototype.createMeshesFromJson = function (jsonObject) {
+    Renderer.prototype.createMeshesFromJSON = function (jsonObject) {
         var meshes = [];
         for (var meshIndex = 0; meshIndex < jsonObject.meshes.length; meshIndex++) {
             var verticesArray = jsonObject.meshes[meshIndex].vertices;
@@ -246,7 +260,7 @@ var camera;
 document.addEventListener("DOMContentLoaded", init, false);
 function init() {
     canvas = document.getElementById("frontBuffer");
-    camera = new Cacamera();
+    camera = new Camera();
     renderer = new Renderer(canvas);
     camera.Position = new BABYLON.Vector3(0, 0, 10);
     camera.Target = new BABYLON.Vector3(0, 0, 0);
