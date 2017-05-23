@@ -348,10 +348,14 @@ class Renderer {
 }
 
 var canvas: HTMLCanvasElement;
+var divCurrentFPS;
+var divAverageFPS;
 var renderer: Renderer;
 var mesh: Mesh;
 var meshes: Mesh[] = [];
 var camera: Camera;
+var previousDate = Date.now();
+var lastFPSValues = new Array(60);
 
 document.addEventListener("DOMContentLoaded", init, false);
 
@@ -360,7 +364,8 @@ function init() {
     canvas = <HTMLCanvasElement>document.getElementById("frontBuffer");
     camera = new Camera();
     renderer = new Renderer(canvas);
-
+    divCurrentFPS = document.getElementById("currentFPS");
+    divAverageFPS = document.getElementById("averageFPS");
 
     camera.Position = new BABYLON.Vector3(0, 0, 10);
     camera.Target = new BABYLON.Vector3(0, 0, 0);
@@ -374,6 +379,27 @@ function loadJsonCompleted(meshesLoaded: Mesh[]) {
 }
 
 function drawingLoop() {
+
+    var now = Date.now();
+    var currentFPS = 1000 / (now - previousDate);
+    previousDate = now;
+
+    divCurrentFPS.textContent = currentFPS.toFixed(2);
+
+    if (lastFPSValues.length < 60) {
+        lastFPSValues.push(currentFPS);
+    } else {
+        lastFPSValues.shift();
+        lastFPSValues.push(currentFPS);
+        var totalValues = 0;
+        for (var i = 0; i < lastFPSValues.length; i++) {
+            totalValues += lastFPSValues[i];
+        }
+
+        var averageFPS = totalValues / lastFPSValues.length;
+        divAverageFPS.textContent = averageFPS.toFixed(2);
+    }
+
     renderer.clear();
 
     for (let i = 0; i < meshes.length; i++) {
