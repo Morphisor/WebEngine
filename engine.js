@@ -164,13 +164,10 @@ var Renderer = (function () {
         }
     };
     Renderer.prototype.render = function (camera, meshes) {
-        // To understand this part, please read the prerequisites resources
         var viewMatrix = BABYLON.Matrix.LookAtLH(camera.Position, camera.Target, BABYLON.Vector3.Up());
         var projectionMatrix = BABYLON.Matrix.PerspectiveFovLH(0.78, this.workingWidth / this.workingHeight, 0.01, 1.0);
         for (var index = 0; index < meshes.length; index++) {
-            // current mesh to work on
             var cMesh = meshes[index];
-            // Beware to apply rotation before translation
             var worldMatrix = BABYLON.Matrix.RotationYawPitchRoll(cMesh.Rotation.y, cMesh.Rotation.x, cMesh.Rotation.z)
                 .multiply(BABYLON.Matrix.Translation(cMesh.Position.x, cMesh.Position.y, cMesh.Position.z));
             var transformMatrix = worldMatrix.multiply(viewMatrix).multiply(projectionMatrix);
